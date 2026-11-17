@@ -45,13 +45,13 @@ module.exports = (function () {
         '.avahi-native .avahi-control{width:100%;max-width:460px}.avahi-native .el-select{width:100%}',
         '.avahi-native .avahi-key{display:block;font-size:11px;color:var(--text-subtitle);margin-top:3px;overflow-wrap:anywhere}',
         '.avahi-native .avahi-group{margin-bottom:24px}.avahi-native h3{font-size:15px;font-weight:600}',
-        '.avahi-native .avahi-footer{border-top:1px solid var(--border);padding-top:20px;margin-top:24px}',
+        '.avahi-native .avahi-footer{position:sticky;bottom:0;z-index:2;box-sizing:border-box;min-width:0;margin-top:24px;padding:14px 18px;border:1px solid var(--border);border-radius:8px;background:var(--background-card,#fff)}',
         '.avahi-native .avahi-error{color:var(--error,#d95050);white-space:pre-wrap;overflow-wrap:anywhere}',
         '.avahi-native .avahi-notice{color:var(--success,#20a87b);white-space:pre-wrap;overflow-wrap:anywhere}',
         '.avahi-native .avahi-log{background:var(--bg-body);border:1px solid var(--border);padding:14px;border-radius:6px;max-height:440px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 monospace}',
         '.avahi-native .gl-btn,.avahi-confirm .gl-btn{height:36px;min-height:36px;margin:0;padding:0 18px;line-height:20px;white-space:nowrap}',
         '.avahi-native .avahi-tab:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}',
-        '@media(max-width:600px){.avahi-native .avahi-row{grid-template-columns:1fr;gap:8px}.avahi-native .avahi-control{max-width:none}.avahi-native .avahi-tabs{gap:20px}}'
+        '@media(max-width:600px){.avahi-native .avahi-row{grid-template-columns:1fr;gap:8px}.avahi-native .avahi-control{max-width:none}.avahi-native .avahi-tabs{gap:20px}.avahi-native .avahi-footer{align-items:flex-start;padding:14px}.avahi-native .avahi-footer>.avahi-actions{width:100%;justify-content:flex-end}}'
     ].join('\n');
     return {
         name: 'avahi-daemon',
@@ -227,11 +227,11 @@ module.exports = (function () {
                     })),
                     this.error ? h('p', {class: 'avahi-error', attrs: {role: 'alert'}}, [this.error]) : null,
                     this.notice ? h('p', {class: 'avahi-notice', attrs: {role: 'status'}}, [this.notice]) : null,
-                    h('div', {attrs: {id: 'avahi-panel', role: 'tabpanel', 'aria-labelledby': 'avahi-tab-' + this.active}}, body),
-                    h('div', {class: 'avahi-footer'}, [h('span', {class: 'avahi-muted'}, [t(this.dirty ? 'unsaved' : 'synced')]), h('div', {class: 'avahi-actions'}, [
-                        button('refresh', this.refresh), button('save', function () { self.save(false); }, false, !this.loaded || !this.dirty), button('apply', function () { self.save(true); }, true, !this.loaded || !this.statusLoaded)
-                    ])])
-                ])
+                    h('div', {attrs: {id: 'avahi-panel', role: 'tabpanel', 'aria-labelledby': 'avahi-tab-' + this.active}}, body)
+                ]),
+                h('div', {class: 'avahi-footer'}, [h('span', {class: 'avahi-muted'}, [t(this.dirty ? 'unsaved' : 'synced')]), h('div', {class: 'avahi-actions'}, [
+                    button('refresh', this.refresh), button('save', function () { self.save(false); }, false, !this.loaded || !this.dirty), button('apply', function () { self.save(true); }, true, !this.loaded || !this.statusLoaded)
+                ])])
             ]);
         }
     };
