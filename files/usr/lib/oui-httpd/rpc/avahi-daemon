@@ -1,0 +1,216 @@
+-- SDK4 loads this module behind its existing authenticated /rpc session.
+local fs = require "nixio.fs"
+local nixio = require "nixio"
+local json = require "cjson.safe"
+local ubus = require "oui.ubus"
+local rpc = require "oui.rpc"
+local ip = require "luci.ip"
+local model = require "avahi-ui.model"
+local M = {}
+local config = "/etc/avahi/avahi-daemon.conf"
+local lock = "/var/lock/avahi-ui.lock"
+-- nixio.fs.readfile returns both text and byte count on SDK4. Keep only text;
+-- this firmware's cjson.safe.decode rejects an extra argument.
+local schema_text = assert(fs.readfile("/usr/share/avahi-ui/schema.json"))
+local schema = assert(json.decode(schema_text))
+local function failure(message) return {err_code = -1, err_msg = message} end
+local function invalid(message) return rpc.ERROR_CODE_INVALID_PARAMS, message end
+
+local function command(args)
+    -- SDK4's process proxy yields and exposes no exit status. Capture it with
+    -- a fixed wrapper; user input is never interpolated into shell source.
+    local argv = {"/bin/sh", "-c", '"$@" 2>&1; code=$?; printf "\\nAVAHI_UI_EXIT:%s\\n" "$code"', "avahi-ui"}
+    for _, value in ipairs(args) do argv[#argv + 1] = value end
+    local process, err = ngx.pipe.spawn(argv, {stdout_read_timeout = 20000, merge_stderr = true})
+    if not process then return nil, tostring(err) end
+    local output, read_err = process:stdout_read_all()
+    if not output then return nil, tostring(read_err) end
+    local body, code = output:match("^(.*)\nAVAHI_UI_EXIT:(%d+)\n$")
+    if not code then return nil, "Command timed out or returned an incomplete response" end
+    if code ~= "0" then return nil, "Command failed (" .. code .. "): " .. body:sub(1, 256) end
+    return body
+end
+
+local function regular(path)
+    local stat = fs.lstat(path)
+    return stat and stat.type == "reg"
+end
+
+local function read_config()
+    if not regular(config) then return nil, "Avahi configuration is missing or is not a regular file" end
+    local raw = fs.readfile(config)
+    if not raw or #raw > 65536 then return nil, "Cannot read configuration (maximum 64 KiB)" end
+    return raw
+end
+
+local function atomic_write(path, raw)
+    local uuid = (fs.readfile("/proc/sys/kernel/random/uuid") or ""):match("^[%x%-]+")
+    if not uuid then return nil, "Cannot create temporary filename" end
+    local temp = config .. ".ui-" .. uuid
+    local file = nixio.open(temp, nixio.open_flags("wronly", "creat", "excl"), 644)
+    if not file then return nil, "Cannot create temporary configuration" end
+    local offset = 0
+    while offset < #raw do
+        local count = file:write(raw:sub(offset + 1))
+        if not count or count == 0 then break end
+        offset = offset + count
+    end
+    local synced = file:sync(); file:close()
+    if offset ~= #raw or not synced or not fs.rename(temp, path) then
+        fs.unlink(temp); return nil, "Cannot save configuration"
+    end
+    return true
+end
+
+local function version(name)
+    for _, source in ipairs({{"/lib/apk/db/installed", "P:", "V:"}, {"/usr/lib/opkg/status", "Package: ", "Version: "}}) do
+        local raw = fs.readfile(source[1]) or ""
+        for record in (raw .. "\n\n"):gmatch("(.-)\n\n") do
+            local package, value
+            for line in record:gmatch("[^\n]+") do
+                if line:sub(1, #source[2]) == source[2] then package = line:sub(#source[2] + 1) end
+                if line:sub(1, #source[3]) == source[3] then value = line:sub(#source[3] + 1) end
+            end
+            if package == name then return value end
+        end
+    end
+    return ""
+end
+
+local function init_status(data, name)
+    local running = false
+    for _, instance in pairs((data[name] or {}).instances or {}) do
+        if instance.running then running = true end
+    end
+    local enabled = false
+    for entry in fs.dir("/etc/rc.d") or function() end do
+        if entry:match("^S%d+(.+)$") == name then enabled = true end
+    end
+    return {running = running, enabled = enabled, installed = fs.access("/etc/init.d/" .. name) == true}
+end
+
+function M.get_status()
+    local data, err = ubus.call("service", "list", {})
+    if type(data) ~= "table" then return failure("Cannot query service: " .. tostring(err)) end
+    local status = init_status(data, "avahi-daemon")
+    status.version = version("avahi-dbus-daemon") ~= "" and version("avahi-dbus-daemon") or version("avahi-nodbus-daemon")
+    status.ui_version = version("gl-ui-avahi-daemon")
+    status.umdns = init_status(data, "umdns")
+    return status
+end
+
+function M.get_config()
+    local raw, err = read_config()
+    if not raw then return failure(err) end
+    local interfaces = {}
+    for name in fs.dir("/sys/class/net") or function() end do
+        if name ~= "lo" then interfaces[#interfaces + 1] = name end
+    end
+    table.sort(interfaces)
+    return {settings = model.settings(raw, schema), schema = schema, revision = ngx.md5(raw), interfaces = interfaces}
+end
+
+function M.set_config(params)
+    if type(params) ~= "table" or type(params.revision) ~= "string" or #params.revision ~= 32
+        or (params.apply ~= nil and type(params.apply) ~= "boolean") then return invalid("Invalid save parameters") end
+    local ok, err = model.validate(params.settings, schema, function(value)
+        if value:find("/", 1, true) then return false end
+        local success, result = pcall(ip.new, value)
+        return success and result and (result:is4() or result:is6())
+    end)
+    if not ok then return invalid(err) end
+    if not fs.mkdir(lock, 700) then return failure("Configuration is busy; retry shortly") end
+    -- Only local disk operations are inside pcall. SDK socket calls yield in Lua 5.1.
+    local success, result = pcall(function()
+        local raw, read_err = read_config()
+        if not raw then return failure(read_err) end
+        if ngx.md5(raw) ~= params.revision then return failure("Configuration changed externally; refresh before saving") end
+        local effective = model.effective(model.settings(model.update(raw, params.settings), schema), schema)
+        if effective.server["use-ipv4"] == "no" and effective.server["use-ipv6"] == "no" then
+            return failure("At least one of IPv4 and IPv6 must be enabled")
+        end
+        local updated = model.update(raw, params.settings)
+        if #updated > 65536 then return failure("Configuration exceeds 64 KiB") end
+        if raw ~= updated then
+            local saved, save_err = atomic_write(config .. ".gl-ui.bak", raw)
+            if not saved then return failure(save_err) end
+            saved, save_err = atomic_write(config, updated)
+            if not saved then return failure(save_err) end
+        end
+        return {success = true, saved = true, revision = ngx.md5(updated)}
+    end)
+    fs.rmdir(lock)
+    if not success then return failure("Cannot save configuration: " .. tostring(result)) end
+    if result.err_code then return result end
+    if params.apply then
+        local status = M.get_status()
+        if status.err_code then result.warning = "Configuration saved; " .. status.err_msg
+        elseif status.running or status.enabled then
+            -- SIGHUP does not re-read avahi-daemon.conf; a restart is required.
+            local restarted, restart_err = command({"/etc/init.d/avahi-daemon", "restart"})
+            if not restarted then result.warning = "Configuration saved; restart failed: " .. tostring(restart_err)
+            else result.applied = true end
+        else result.stopped = true end
+    end
+    return result
+end
+
+function M.service(params)
+    local action = type(params) == "table" and params.action
+    local allowed = {start = true, stop = true, restart = true, enable = true, disable = true}
+    if not allowed[action] then return invalid("Invalid service action") end
+    local result, err = command({"/etc/init.d/avahi-daemon", action})
+    if not result then return failure(err) end
+    return {success = true}
+end
+
+local function wait_umdns_state(enabled)
+    -- procd acknowledges stop before the process exits. Allow its five-second
+    -- termination grace period plus a small margin before declaring failure.
+    for attempt = 1, 25 do
+        local data, err = ubus.call("service", "list", {name = "umdns"})
+        if type(data) ~= "table" then return failure("Cannot verify umdns state: " .. tostring(err)) end
+        local status = init_status(data, "umdns")
+        if enabled and status.running and status.enabled or not enabled and not status.running and not status.enabled then
+            return {success = true}
+        end
+        if attempt < 25 then ngx.sleep(0.25) end
+    end
+    return failure(enabled and "umdns is not running or enabled at boot; check its service logs" or "umdns is still running or enabled at boot; refresh its status and retry")
+end
+
+function M.disable_umdns()
+    if not fs.access("/etc/init.d/umdns") then return {success = true, missing = true} end
+    -- Both commands are fixed; this endpoint cannot control arbitrary services.
+    -- Attempt stop even if disabling startup fails, and report partial failures.
+    local disabled, disable_err = command({"/etc/init.d/umdns", "disable"})
+    local stopped, stop_err = command({"/etc/init.d/umdns", "stop"})
+    if not disabled or not stopped then
+        local errors = {}
+        if not disabled then errors[#errors + 1] = "Cannot disable umdns at boot: " .. tostring(disable_err) end
+        if not stopped then errors[#errors + 1] = "Cannot stop umdns: " .. tostring(stop_err) end
+        return failure(table.concat(errors, "; "))
+    end
+    return wait_umdns_state(false)
+end
+
+function M.get_logs()
+    local output, err = command({"/sbin/logread", "-e", "avahi", "-l", "200"})
+    if not output then return failure(err) end
+    return {text = output:sub(-65536)}
+end
+
+function M.enable_umdns()
+    if not fs.access("/etc/init.d/umdns") then return {success = true, missing = true} end
+    local enabled, enable_err = command({"/etc/init.d/umdns", "enable"})
+    local started, start_err = command({"/etc/init.d/umdns", "start"})
+    if not enabled or not started then
+        local errors = {}
+        if not enabled then errors[#errors + 1] = "Cannot enable umdns at boot: " .. tostring(enable_err) end
+        if not started then errors[#errors + 1] = "Cannot start umdns: " .. tostring(start_err) end
+        return failure(table.concat(errors, "; "))
+    end
+    return wait_umdns_state(true)
+end
+
+return M

@@ -1,0 +1,367 @@
+[
+  {
+    "key": "server",
+    "tab": "general",
+    "label": [
+      "基本设置",
+      "General"
+    ],
+    "fields": [
+      {
+        "key": "host-name",
+        "label": [
+          "主机名",
+          "Host name"
+        ],
+        "kind": "host",
+        "default": ""
+      },
+      {
+        "key": "domain-name",
+        "label": [
+          "域名",
+          "Domain name"
+        ],
+        "kind": "domain",
+        "default": "local"
+      },
+      {
+        "key": "use-ipv4",
+        "label": [
+          "启用 IPv4",
+          "Use IPv4"
+        ],
+        "kind": "bool",
+        "default": "yes"
+      },
+      {
+        "key": "use-ipv6",
+        "label": [
+          "启用 IPv6",
+          "Use IPv6"
+        ],
+        "kind": "bool",
+        "default": "yes"
+      },
+      {
+        "key": "allow-interfaces",
+        "label": [
+          "允许的接口",
+          "Allowed interfaces"
+        ],
+        "kind": "interfaces",
+        "default": ""
+      },
+      {
+        "key": "deny-interfaces",
+        "label": [
+          "排除的接口",
+          "Denied interfaces"
+        ],
+        "kind": "interfaces",
+        "default": ""
+      },
+      {
+        "key": "browse-domains",
+        "label": [
+          "附加浏览域",
+          "Additional browse domains"
+        ],
+        "kind": "domains",
+        "default": ""
+      },
+      {
+        "key": "check-response-ttl",
+        "label": [
+          "检查响应 TTL",
+          "Check response TTL"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "use-iff-running",
+        "label": [
+          "检测接口运行标志",
+          "Use IFF_RUNNING"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "disallow-other-stacks",
+        "label": [
+          "独占 mDNS 端口",
+          "Disallow other mDNS stacks"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "allow-point-to-point",
+        "label": [
+          "允许点对点接口",
+          "Allow point-to-point interfaces"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "cache-entries-max",
+        "label": [
+          "每接口缓存条目上限",
+          "Cache entries per interface"
+        ],
+        "kind": "uint",
+        "default": "4096"
+      },
+      {
+        "key": "ratelimit-interval-usec",
+        "label": [
+          "限速周期（微秒）",
+          "Rate limit interval (microseconds)"
+        ],
+        "kind": "uint",
+        "default": "0"
+      },
+      {
+        "key": "ratelimit-burst",
+        "label": [
+          "每周期发包上限",
+          "Rate limit burst"
+        ],
+        "kind": "uint",
+        "default": "0"
+      }
+    ]
+  },
+  {
+    "key": "publish",
+    "tab": "publish",
+    "label": [
+      "服务发布",
+      "Publishing"
+    ],
+    "fields": [
+      {
+        "key": "disable-publishing",
+        "label": [
+          "禁用所有发布",
+          "Disable all publishing"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "disable-user-service-publishing",
+        "label": [
+          "禁止应用发布服务",
+          "Disable application service publishing"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "publish-addresses",
+        "label": [
+          "发布主机地址",
+          "Publish addresses"
+        ],
+        "kind": "bool",
+        "default": "yes"
+      },
+      {
+        "key": "publish-hinfo",
+        "label": [
+          "发布主机硬件信息",
+          "Publish hardware information"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "publish-workstation",
+        "label": [
+          "发布工作站服务",
+          "Publish workstation service"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "publish-domain",
+        "label": [
+          "发布域名",
+          "Publish domain"
+        ],
+        "kind": "bool",
+        "default": "yes"
+      },
+      {
+        "key": "publish-dns-servers",
+        "label": [
+          "发布 DNS 服务器",
+          "Publish DNS servers"
+        ],
+        "kind": "addresses",
+        "default": ""
+      },
+      {
+        "key": "publish-resolv-conf-dns-servers",
+        "label": [
+          "发布 resolv.conf 中的 DNS",
+          "Publish DNS servers from resolv.conf"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "publish-aaaa-on-ipv4",
+        "label": [
+          "通过 IPv4 发布 IPv6 地址",
+          "Publish AAAA over IPv4"
+        ],
+        "kind": "bool",
+        "default": "yes"
+      },
+      {
+        "key": "publish-a-on-ipv6",
+        "label": [
+          "通过 IPv6 发布 IPv4 地址",
+          "Publish A over IPv6"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "add-service-cookie",
+        "label": [
+          "添加服务 Cookie",
+          "Add service cookie"
+        ],
+        "kind": "bool",
+        "default": "no"
+      }
+    ]
+  },
+  {
+    "key": "reflector",
+    "tab": "reflector",
+    "label": [
+      "mDNS 反射",
+      "mDNS reflector"
+    ],
+    "fields": [
+      {
+        "key": "enable-reflector",
+        "label": [
+          "启用 mDNS 反射",
+          "Enable mDNS reflector"
+        ],
+        "kind": "bool",
+        "default": "no"
+      },
+      {
+        "key": "reflect-ipv",
+        "label": [
+          "跨 IPv4/IPv6 反射",
+          "Reflect between IPv4 and IPv6"
+        ],
+        "kind": "bool",
+        "default": "no"
+      }
+    ]
+  },
+  {
+    "key": "wide-area",
+    "tab": "advanced",
+    "label": [
+      "广域 DNS-SD",
+      "Wide-area DNS-SD"
+    ],
+    "fields": [
+      {
+        "key": "enable-wide-area",
+        "label": [
+          "启用广域 DNS-SD",
+          "Enable wide-area DNS-SD"
+        ],
+        "kind": "bool",
+        "default": "no"
+      }
+    ]
+  },
+  {
+    "key": "rlimits",
+    "tab": "advanced",
+    "label": [
+      "资源限制",
+      "Resource limits"
+    ],
+    "fields": [
+      {
+        "key": "rlimit-as",
+        "label": [
+          "虚拟内存上限（字节）",
+          "Virtual memory limit (bytes)"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-core",
+        "label": [
+          "核心转储上限（字节）",
+          "Core dump limit (bytes)"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-data",
+        "label": [
+          "数据段上限（字节）",
+          "Data segment limit (bytes)"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-fsize",
+        "label": [
+          "文件大小上限（字节）",
+          "File size limit (bytes)"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-nofile",
+        "label": [
+          "文件描述符上限",
+          "Open file limit"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-stack",
+        "label": [
+          "栈上限（字节）",
+          "Stack limit (bytes)"
+        ],
+        "kind": "uint",
+        "default": ""
+      },
+      {
+        "key": "rlimit-nproc",
+        "label": [
+          "进程数上限",
+          "Process limit"
+        ],
+        "kind": "uint",
+        "default": ""
+      }
+    ]
+  }
+]

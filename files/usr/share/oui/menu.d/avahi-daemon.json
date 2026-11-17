@@ -1,0 +1,10 @@
+{
+  "index": 104,
+  "view": "avahi-daemon",
+  "title": "Avahi",
+  "level": 2,
+  "parent": "applications",
+  "parent_icon": "application",
+  "parent_index": 55,
+  "show_mode": ["router"]
+}

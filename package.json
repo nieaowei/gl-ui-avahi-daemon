@@ -1,0 +1,14 @@
+{
+  "name": "gl-ui-avahi-daemon",
+  "private": true,
+  "scripts": {
+    "test": "node --test scripts/test-ui.cjs && sh scripts/test-lua.sh && node scripts/test-build-assets.cjs",
+    "test:ui": "node --test scripts/test-ui.cjs",
+    "prepare:release": "python3 scripts/prepare-release.py",
+    "build:apk": "sh scripts/build-apk.sh"
+  },
+  "devDependencies": {
+    "luamin": "1.0.4",
+    "terser": "5.31.0"
+  }
+}
