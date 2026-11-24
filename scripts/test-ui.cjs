@@ -9,7 +9,7 @@ const menu = require(path.join(root, 'usr/share/oui/menu.d/avahi-daemon.json'));
 function context() {
     const ctx = {...view.data(), $store: {getters: {lang: 'zh-cn'}}, $set: (obj, key, value) => { obj[key] = value; }};
     for (const [key, fn] of Object.entries(view.methods)) ctx[key] = fn.bind(ctx);
-    Object.defineProperty(ctx, 'dirty', {get: () => view.computed.dirty.call(ctx)});
+    for (const [key, get] of Object.entries(view.computed)) Object.defineProperty(ctx, key, {get: () => get.call(ctx)});
     return ctx;
 }
 function loaded() {
@@ -177,4 +177,58 @@ test('umdns toggle does not execute without known status', async () => {
     const ctx = loaded(); ctx.statusLoaded = false;
     ctx.rpc = async () => { throw Error('should not execute'); };
     assert.equal(await ctx.toggleUmdns(), false); assert.equal(ctx.error, '');
+});
+test('tabs support arrow, Home, and End keyboard navigation', () => {
+    const ctx = loaded();
+    const tabs = ['general', 'publish', 'reflector', 'advanced', 'logs'].map(() => ({focus() { this.focused = true; }}));
+    ctx.tabKey({key: 'ArrowRight', preventDefault() {}, currentTarget: {parentNode: {querySelectorAll() { return tabs; }}}}, 0);
+    assert.equal(ctx.active, 'publish'); assert.equal(tabs[1].focused, true);
+    ctx.tabKey({key: 'End', preventDefault() {}, currentTarget: {parentNode: {querySelectorAll() { return tabs; }}}}, 1);
+    assert.equal(ctx.active, 'logs'); assert.equal(tabs[4].focused, true);
+    ctx.tabKey({key: 'Home', preventDefault() {}, currentTarget: {parentNode: {querySelectorAll() { return tabs; }}}}, 4);
+    assert.equal(ctx.active, 'general'); assert.equal(tabs[0].focused, true);
+});
+test('interface chips toggle comma-separated device names and one-click reset restores default', async () => {
+    const ctx = loaded(); ctx.interfaces = ['br-lan', 'eth1', 'guest'];
+    ctx.toggleInterface('server', 'allow-interfaces', 'br-lan');
+    ctx.toggleInterface('server', 'allow-interfaces', 'eth1');
+    assert.equal(ctx.settings.server['allow-interfaces'], 'br-lan, eth1');
+    ctx.toggleInterface('server', 'allow-interfaces', 'br-lan');
+    assert.equal(ctx.settings.server['allow-interfaces'], 'eth1');
+    const row = nodes(render(ctx), n => n.data.attrs?.['data-avahi-field'] === 'server.allow-interfaces')[0];
+    const resetBtn = nodes(row, n => n.tag === 'button' && n.data.class === 'avahi-reset')[0];
+    assert.ok(resetBtn);
+    resetBtn.data.on.click();
+    assert.equal(ctx.settings.server['allow-interfaces'], '');
+    assert.equal(ctx.dirty, false);
+});
+test('discardChanges restores original settings after confirmation', async () => {
+    const ctx = loaded(); ctx.settings.server['host-name'] = 'draft';
+    ctx.ask = async () => true;
+    assert.equal(await ctx.discardChanges(), true);
+    assert.equal(ctx.settings.server['host-name'], '');
+    assert.equal(ctx.dirty, false);
+});
+test('log filtering supports errorsOnly and keyword search without mutating raw logText', () => {
+    const ctx = loaded(); ctx.active = 'logs';
+    ctx.logText = 'info: started\nwarning: conflict detected\nerror: bind failed\n';
+    ctx.errorsOnly = true;
+    assert.equal(ctx.visibleLogs, 'warning: conflict detected\nerror: bind failed');
+    ctx.logSearch = 'bind';
+    assert.equal(ctx.visibleLogs, 'error: bind failed');
+    const log = nodes(render(ctx), n => n.tag === 'pre')[0];
+    assert.deepEqual(log.children, ['error: bind failed']);
+    assert.equal(ctx.logText, 'info: started\nwarning: conflict detected\nerror: bind failed\n');
+});
+test('reflector warns when enabled without allow-interfaces restriction', () => {
+    const ctx = loaded(); ctx.active = 'reflector';
+    ctx.settings.reflector['enable-reflector'] = 'yes';
+    const warn = nodes(render(ctx), n => {
+        const cls = Array.isArray(n.data.class) ? n.data.class : String(n.data.class || '').split(/\s+/);
+        return cls.includes('avahi-callout') && cls.includes('is-warn');
+    });
+    assert.equal(warn.length, 1);
+    const goBtn = nodes(warn[0], n => n.tag === 'gl-button')[0];
+    goBtn.data.on.click();
+    assert.equal(ctx.active, 'general');
 });
